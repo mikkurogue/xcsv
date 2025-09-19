@@ -82,8 +82,8 @@ Examples:
 xcsv input.xlsx export -o out
 # writes files like:
 # out/sheet1.csv
-# out/emission_assets.csv
-# out/shipment_definitions.csv
+# out/sheet2.csv
+# out/financial_sheet_and_stuff_top_secret.csv
 
 # Semicolon-separated CSV (European format)
 xcsv input.xlsx export -o out --delimiter ";"
