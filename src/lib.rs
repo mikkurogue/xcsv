@@ -1,18 +1,24 @@
 // Library interface for xcsv - exposes functions for testing
 
-use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
-use anyhow::{Context, Result};
-use quick_xml::reader::Reader;
-use quick_xml::events::Event;
+use anyhow::Result;
 use chrono;
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
+use std::collections::BTreeMap;
+use std::io::BufRead;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
-pub struct SheetInfo { pub name: String, pub path_in_zip: String }
+pub struct SheetInfo {
+    pub name: String,
+    pub path_in_zip: String,
+}
 
 fn tag_eq_ignore_case(actual: &[u8], expect: &str) -> bool {
-    actual.eq_ignore_ascii_case(expect.as_bytes()) || actual.ends_with(expect.as_bytes()) || actual.ends_with(expect.to_ascii_lowercase().as_bytes()) || actual.ends_with(expect.to_ascii_uppercase().as_bytes())
+    actual.eq_ignore_ascii_case(expect.as_bytes())
+        || actual.ends_with(expect.as_bytes())
+        || actual.ends_with(expect.to_ascii_lowercase().as_bytes())
+        || actual.ends_with(expect.to_ascii_uppercase().as_bytes())
 }
 
 pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, String>> {
@@ -29,8 +35,12 @@ pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, Str
                     let mut target = None;
                     for a in e.attributes().flatten() {
                         match a.key.as_ref() {
-                            b"Id" | b"r:Id" => id = Some(String::from_utf8_lossy(&a.value).into_owned()),
-                            b"Target" => target = Some(String::from_utf8_lossy(&a.value).into_owned()),
+                            b"Id" | b"r:Id" => {
+                                id = Some(String::from_utf8_lossy(&a.value).into_owned())
+                            }
+                            b"Target" => {
+                                target = Some(String::from_utf8_lossy(&a.value).into_owned())
+                            }
                             _ => {}
                         }
                     }
@@ -48,7 +58,10 @@ pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, Str
     Ok(map)
 }
 
-pub fn parse_workbook<R: BufRead>(reader: R, rels: &BTreeMap<String, String>) -> Result<Vec<SheetInfo>> {
+pub fn parse_workbook<R: BufRead>(
+    reader: R,
+    rels: &BTreeMap<String, String>,
+) -> Result<Vec<SheetInfo>> {
     let mut xml = Reader::from_reader(reader);
     xml.trim_text(true);
     let mut buf = Vec::new();
@@ -62,13 +75,18 @@ pub fn parse_workbook<R: BufRead>(reader: R, rels: &BTreeMap<String, String>) ->
                     for a in e.attributes().flatten() {
                         match a.key.as_ref() {
                             b"name" => name = Some(String::from_utf8_lossy(&a.value).into_owned()),
-                            b"id" | b"r:id" => r_id = Some(String::from_utf8_lossy(&a.value).into_owned()),
+                            b"id" | b"r:id" => {
+                                r_id = Some(String::from_utf8_lossy(&a.value).into_owned())
+                            }
                             _ => {}
                         }
                     }
                     if let (Some(name), Some(rid)) = (name, r_id) {
                         if let Some(target) = rels.get(&rid) {
-                            sheets.push(SheetInfo { name, path_in_zip: target.clone() });
+                            sheets.push(SheetInfo {
+                                name,
+                                path_in_zip: target.clone(),
+                            });
                         }
                     }
                 }
@@ -104,7 +122,9 @@ pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
                 }
             }
             Ok(Event::Text(t)) => {
-                if in_si { current.push_str(&t.unescape()?); }
+                if in_si {
+                    current.push_str(&t.unescape()?);
+                }
             }
             Ok(Event::Eof) => break,
             Err(e) => return Err(anyhow::anyhow!("XML error in sharedStrings: {}", e)),
@@ -116,12 +136,17 @@ pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CellRef { pub col: u32, pub row: u32 }
+pub struct CellRef {
+    pub col: u32,
+    pub row: u32,
+}
 
 pub fn col_to_index(col: &str) -> u32 {
     let mut n: u32 = 0;
     for b in col.bytes() {
-        if !(b'A'..=b'Z').contains(&b) { break; }
+        if !(b'A'..=b'Z').contains(&b) {
+            break;
+        }
         n = n * 26 + ((b - b'A' + 1) as u32);
     }
     n
@@ -131,16 +156,32 @@ pub fn parse_cell_ref(s: &str) -> Option<CellRef> {
     let mut col = String::new();
     let mut row = String::new();
     for ch in s.chars() {
-        if ch.is_ascii_alphabetic() { col.push(ch.to_ascii_uppercase()); } else { row.push(ch); }
+        if ch.is_ascii_alphabetic() {
+            col.push(ch.to_ascii_uppercase());
+        } else {
+            row.push(ch);
+        }
     }
-    if col.is_empty() || row.is_empty() { return None; }
-    Some(CellRef { col: col_to_index(&col), row: row.parse().ok()? })
+    if col.is_empty() || row.is_empty() {
+        return None;
+    }
+    Some(CellRef {
+        col: col_to_index(&col),
+        row: row.parse().ok()?,
+    })
 }
 
 pub fn to_lowercase_filename(name: &str) -> String {
-    let s: String = name.chars().map(|c| {
-        if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c.to_ascii_lowercase() } else { '_' }
-    }).collect();
+    let s: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
     if s.is_empty() { "sheet".to_string() } else { s }
 }
 
@@ -153,18 +194,23 @@ pub fn excel_serial_to_iso_date(serial: f64) -> Option<String> {
     // Excel serial date: integer part is days since 1900-01-01, fractional part is time
     let days = serial.floor() as i32;
     let time_fraction = serial - days as f64;
-    
+
     // Convert to Unix timestamp (seconds since 1970-01-01)
     let unix_days = days - EXCEL_EPOCH_DAYS;
     let unix_seconds = (unix_days as f64 * SECONDS_PER_DAY) + (time_fraction * SECONDS_PER_DAY);
-    
+
     // Convert to ISO 8601 format
     let timestamp = unix_seconds as i64;
     let datetime = chrono::DateTime::from_timestamp(timestamp, 0)?;
     Some(datetime.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
 
-pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String], out_path: &Path, delimiter: u8) -> Result<()> {
+pub fn export_sheet_xml_to_csv<R: BufRead>(
+    reader: R,
+    shared_strings: &[String],
+    out_path: &Path,
+    delimiter: u8,
+) -> Result<()> {
     let mut xml = Reader::from_reader(reader);
     xml.trim_text(true);
     let mut buf = Vec::new();
@@ -186,7 +232,9 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
                     // ensure row index continuity
                     let mut r_attr = None;
                     for a in e.attributes().flatten() {
-                        if a.key.as_ref() == b"r" { r_attr = String::from_utf8_lossy(&a.value).parse::<u32>().ok(); }
+                        if a.key.as_ref() == b"r" {
+                            r_attr = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
+                        }
                     }
                     let next = r_attr.unwrap_or(current_row_idx + 1);
                     while current_row_idx + 1 < next {
@@ -197,16 +245,22 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
                     current_row_idx = next;
                     row_vals.clear();
                 } else if tag_eq_ignore_case(e.name().as_ref(), "c") {
-                    cell_col = None; cell_type = None; cell_val.clear();
+                    cell_col = None;
+                    cell_type = None;
+                    cell_val.clear();
                     let mut r_attr = None;
                     for a in e.attributes().flatten() {
                         match a.key.as_ref() {
                             b"r" => r_attr = parse_cell_ref(&String::from_utf8_lossy(&a.value)),
-                            b"t" => cell_type = Some(String::from_utf8_lossy(&a.value).into_owned()),
+                            b"t" => {
+                                cell_type = Some(String::from_utf8_lossy(&a.value).into_owned())
+                            }
                             _ => {}
                         }
                     }
-                    if let Some(cr) = r_attr { cell_col = Some(cr.col); }
+                    if let Some(cr) = r_attr {
+                        cell_col = Some(cr.col);
+                    }
                 } else if tag_eq_ignore_case(e.name().as_ref(), "is") {
                     // Inline string container - reset cell_val to collect text
                     cell_val.clear();
@@ -218,19 +272,25 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
                 if tag_eq_ignore_case(e.name().as_ref(), "c") {
                     let col = cell_col.unwrap_or((row_vals.len() as u32) + 1);
                     let needed = col as usize;
-                    if row_vals.len() < needed { row_vals.resize(needed, String::new()); }
+                    if row_vals.len() < needed {
+                        row_vals.resize(needed, String::new());
+                    }
                     let v = match cell_type.as_deref() {
                         Some("s") => {
                             // Shared string reference
-                            if let Ok(idx) = cell_val.trim().parse::<usize>() { 
-                                shared_strings.get(idx).cloned().unwrap_or_default() 
-                            } else { 
-                                String::new() 
+                            if let Ok(idx) = cell_val.trim().parse::<usize>() {
+                                shared_strings.get(idx).cloned().unwrap_or_default()
+                            } else {
+                                String::new()
                             }
                         }
                         Some("b") => {
                             // Boolean
-                            if cell_val.trim() == "1" { "TRUE".to_string() } else { "FALSE".to_string() }
+                            if cell_val.trim() == "1" {
+                                "TRUE".to_string()
+                            } else {
+                                "FALSE".to_string()
+                            }
                         }
                         Some("inlineStr") => {
                             // Inline string (handled in text events)
@@ -247,10 +307,17 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
                         _ => {
                             // Numeric value - check if it looks like a date
                             if let Ok(num) = cell_val.trim().parse::<f64>() {
+                                // Rule out geo-coordinates
+                                if num >= -52.0 && num <= 52.0 {
+                                    cell_val.clone()
+                                }
                                 // Excel dates are typically between 1 (1900-01-01) and ~50000 (2037+)
                                 // Be more conservative: only convert if it's in a reasonable date range
                                 // and has a reasonable magnitude (not small integers like 123)
-                                if num >= 1.0 && num <= 50000.0 && (num >= 1000.0 || num.fract() > 0.0) {
+                                else if num >= 1.0
+                                    && num <= 50000.0
+                                    && (num >= 1000.0 || num.fract() > 0.0)
+                                {
                                     // Could be a date, try to convert
                                     if let Some(iso_date) = excel_serial_to_iso_date(num) {
                                         iso_date
@@ -266,7 +333,9 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
                         }
                     };
                     row_vals[(col as usize) - 1] = v;
-                    cell_col = None; cell_type = None; cell_val.clear();
+                    cell_col = None;
+                    cell_type = None;
+                    cell_val.clear();
                 } else if tag_eq_ignore_case(e.name().as_ref(), "row") {
                     wtr.write_record(row_vals.iter())?;
                     row_vals.clear();
@@ -274,7 +343,9 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
             }
             Ok(Event::Text(t)) => {
                 let txt = t.unescape()?;
-                if !txt.is_empty() { cell_val.push_str(&txt); }
+                if !txt.is_empty() {
+                    cell_val.push_str(&txt);
+                }
             }
             Ok(Event::Eof) => break,
             Err(e) => return Err(anyhow::anyhow!("XML error in worksheet: {}", e)),
@@ -282,7 +353,49 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(reader: R, shared_strings: &[String],
         }
         buf.clear();
     }
-    if !row_vals.is_empty() { wtr.write_record(row_vals.iter())?; }
+    if !row_vals.is_empty() {
+        wtr.write_record(row_vals.iter())?;
+    }
     wtr.flush()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::BufReader;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_geo_coordinate_parsing_from_xml() {
+        let xml_data = r#"
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+            <sheetData>
+                <row r="1">
+                    <c r="A1" t="s"><v>0</v></c>
+                    <c r="B1" t="s"><v>1</v></c>
+                </row>
+                <row r="2">
+                    <c r="A2"><v>10.123</v></c>
+                    <c r="B2"><v>-20.456</v></c>
+                </row>
+            </sheetData>
+        </worksheet>
+        "#;
+        let shared_strings = vec![
+            "origin_latitude".to_string(),
+            "origin_longitude".to_string(),
+        ];
+        let reader = BufReader::new(xml_data.as_bytes());
+        let temp_file = NamedTempFile::new().unwrap();
+        let out_path = temp_file.path();
+
+        export_sheet_xml_to_csv(reader, &shared_strings, out_path, b',').unwrap();
+
+        let csv_content = fs::read_to_string(out_path).unwrap();
+        let expected_content = "origin_latitude,origin_longitude\n10.123,-20.456\n";
+        assert_eq!(csv_content, expected_content);
+    }
+}
+

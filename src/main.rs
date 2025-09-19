@@ -1,19 +1,15 @@
-use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use clap::{Parser, Subcommand};
 use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
 use zip::read::ZipArchive;
-use quick_xml::reader::Reader;
-use quick_xml::events::Event;
 
 // Import functions from lib module
 use xcsv::{
-    parse_workbook_rels, parse_workbook, read_shared_strings, 
-    export_sheet_xml_to_csv, SheetInfo, CellRef, col_to_index, 
-    parse_cell_ref, to_lowercase_filename, excel_serial_to_iso_date
+    export_sheet_xml_to_csv, parse_workbook, parse_workbook_rels, read_shared_strings,
+    to_lowercase_filename,
 };
 
 #[derive(Parser, Debug)]
@@ -50,7 +46,10 @@ fn parse_delimiter(s: &str) -> Result<u8, String> {
     match s {
         "," => Ok(b','),
         ";" => Ok(b';'),
-        _ => Err(format!("Invalid delimiter '{}'. Supported delimiters: ',' (comma) or ';' (semicolon)", s))
+        _ => Err(format!(
+            "Invalid delimiter '{}'. Supported delimiters: ',' (comma) or ';' (semicolon)",
+            s
+        )),
     }
 }
 
@@ -61,8 +60,6 @@ fn open_zip(path: &Path) -> Result<ZipArchive<BufReader<File>>> {
     Ok(zip)
 }
 
-
-
 fn main() -> Result<()> {
     let cli = parse_args();
     let mut zip = open_zip(&cli.xlsx_path)?;
@@ -71,18 +68,24 @@ fn main() -> Result<()> {
         Command::List => {
             // Stream-parse workbook rels
             let rels_map = {
-                let f = zip.by_name("xl/_rels/workbook.xml.rels").context("missing xl/_rels/workbook.xml.rels")?;
+                let f = zip
+                    .by_name("xl/_rels/workbook.xml.rels")
+                    .context("missing xl/_rels/workbook.xml.rels")?;
                 let reader = BufReader::new(f);
                 parse_workbook_rels(reader)?
             };
             // Stream-parse workbook
             let sheets = {
-                let f = zip.by_name("xl/workbook.xml").context("missing xl/workbook.xml")?;
+                let f = zip
+                    .by_name("xl/workbook.xml")
+                    .context("missing xl/workbook.xml")?;
                 let reader = BufReader::new(f);
                 parse_workbook(reader, &rels_map)?
             };
 
-            for s in sheets { println!("{}", s.name); }
+            for s in sheets {
+                println!("{}", s.name);
+            }
         }
         Command::Export { out_dir, delimiter } => {
             std::fs::create_dir_all(&out_dir).context("create output directory")?;
@@ -91,16 +94,22 @@ fn main() -> Result<()> {
             let shared_strings: Vec<String> = if let Ok(f) = zip.by_name("xl/sharedStrings.xml") {
                 let reader = BufReader::new(f);
                 read_shared_strings(reader)?
-            } else { Vec::new() };
+            } else {
+                Vec::new()
+            };
 
             // Workbook rels and sheets
             let rels_map = {
-                let f = zip.by_name("xl/_rels/workbook.xml.rels").context("missing xl/_rels/workbook.xml.rels")?;
+                let f = zip
+                    .by_name("xl/_rels/workbook.xml.rels")
+                    .context("missing xl/_rels/workbook.xml.rels")?;
                 let reader = BufReader::new(f);
                 parse_workbook_rels(reader)?
             };
             let sheets = {
-                let f = zip.by_name("xl/workbook.xml").context("missing xl/workbook.xml")?;
+                let f = zip
+                    .by_name("xl/workbook.xml")
+                    .context("missing xl/workbook.xml")?;
                 let reader = BufReader::new(f);
                 parse_workbook(reader, &rels_map)?
             };
@@ -109,7 +118,9 @@ fn main() -> Result<()> {
             for sheet in sheets {
                 let filename = format!("{}.csv", to_lowercase_filename(&sheet.name));
                 let out_path = out_dir.join(filename);
-                let f = zip.by_name(&sheet.path_in_zip).with_context(|| format!("missing {}", sheet.path_in_zip))?;
+                let f = zip
+                    .by_name(&sheet.path_in_zip)
+                    .with_context(|| format!("missing {}", sheet.path_in_zip))?;
                 let reader = BufReader::new(f);
                 export_sheet_xml_to_csv(reader, &shared_strings, &out_path, delimiter)?;
                 eprintln!("wrote {:?}", out_path);
@@ -118,4 +129,3 @@ fn main() -> Result<()> {
     }
     Ok(())
 }
-
