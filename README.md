@@ -25,6 +25,12 @@ Binary path:
 ./target/release/xcsv
 ```
 
+Installation with `cargo install`
+
+```bash
+cargo install --path . --locked --force
+```
+
 ### Usage
 
 Show help:
