@@ -5,9 +5,11 @@ Convert Excel (.xlsx) workbooks to CSV, one CSV per sheet.
 ### Features
 
 - Lowercase filenames derived from sheet names (non-alphanumerics replaced with `_`)
-- Streams worksheet XML to CSV using `quick-xml` and `csv`
+- Streams worksheet XML to CSV using `quick-xml` and `csv` (low memory usage)
 - Preserves empty cells as empty CSV fields (no padding heuristics needed)
-- Handles shared strings, booleans, inline strings, and raw numbers
+- **Excel Date/Time Support**: Converts Excel serial dates to ISO 8601 format
+- **Comprehensive Cell Types**: Shared strings, booleans, inline strings, formulas, error values, and numbers
+- **Smart Date Detection**: Automatically detects and converts Excel date serial numbers
 
 ### Install / Build
 
@@ -55,30 +57,59 @@ xcsv <path-to-file.xlsx> export --out <output-dir>
 xcsv <path-to-file.xlsx> export -o <output-dir>
 ```
 
+**CSV Delimiter Options:**
+
+```bash
+# Default: comma delimiter
+xcsv input.xlsx export -o out
+
+# Semicolon delimiter (useful for European locales)
+xcsv input.xlsx export -o out --delimiter ";"
+# or
+xcsv input.xlsx export -o out -d ";"
+```
+
 Examples:
 
 ```bash
+# Standard comma-separated CSV
 xcsv input.xlsx export -o out
 # writes files like:
 # out/sheet1.csv
 # out/emission_assets.csv
 # out/shipment_definitions.csv
+
+# Semicolon-separated CSV (European format)
+xcsv input.xlsx export -o out --delimiter ";"
+# writes files with semicolon delimiters instead of commas
 ```
 
 ### Notes and behavior
 
-- Output CSV rows are written as encountered; row lengths may vary across the file if trailing empty cells are omitted by Excel. The writer is configured as flexible to allow this.
-- Empty cells are preserved as empty fields within a row based on cell coordinates.
-- Supported cell types: shared strings (`t="s"`), inline strings, booleans, and raw numeric/text values. Date/time formatting from Excel number formats is not applied (values are exported as-is).
+- **Memory Efficient**: Streams XML directly from ZIP entries without loading entire files into memory
+- **Flexible CSV Output**: Row lengths may vary across the file if trailing empty cells are omitted by Excel
+- **Empty Cell Preservation**: Empty cells are preserved as empty fields within a row based on cell coordinates
+- **Excel Date Conversion**: Automatically converts Excel serial dates (e.g., `44927.0` → `2023-01-01T00:00:00.000Z`)
+- **Supported Cell Types**:
+  - Shared strings (`t="s"`) - References to shared string table
+  - Inline strings (`t="inlineStr"`) - Direct text content
+  - Booleans (`t="b"`) - TRUE/FALSE values
+  - Formula results (`t="str"`) - String results from formulas
+  - Error values (`t="e"`) - Excel error codes like #N/A, #VALUE!
+  - Numeric values - With intelligent date detection
+- **CSV Delimiter Support**: Choose between comma (`,`) and semicolon (`;`) delimiters
 
 ### Limitations / roadmap
 
-- Date/time and formatted numbers are not converted; they are exported as raw values.
 - Only `.xlsx` (Office Open XML) files are supported. Legacy `.xls` is not supported.
+- Date detection is heuristic-based (numbers ≥1000 or with fractional parts in reasonable date range)
+- Number format styles from Excel are not preserved (dates converted to ISO format, not original formatting)
 - Future options that could be added:
   - Select specific sheets to export
-  - Custom CSV delimiter/quote/escape
+  - Custom CSV quote/escape characters
   - Normalize row lengths to max columns (pad trailing empties)
+  - Preserve Excel number formatting
+  - Parse number format codes for more accurate date detection
 
 ### License
 
