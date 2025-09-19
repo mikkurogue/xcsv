@@ -1,5 +1,5 @@
 ## xcsv
-
+![build](https://github.com/mikkurogue/xcsv/actions/workflows/rust.yml/badge.svg)
 Convert Excel (.xlsx) workbooks to CSV, one CSV per sheet.
 
 ### Features
