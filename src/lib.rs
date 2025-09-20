@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use chrono;
+use quick_xml::escape::unescape;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use std::collections::BTreeMap;
@@ -24,7 +25,7 @@ fn tag_eq_ignore_case(actual: &[u8], expect: &str) -> bool {
 pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, String>> {
     // Map r:Id -> full path inside zip (xl/worksheets/sheet1.xml)
     let mut xml = Reader::from_reader(reader);
-    xml.trim_text(true);
+    xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut map = BTreeMap::new();
     loop {
@@ -63,7 +64,7 @@ pub fn parse_workbook<R: BufRead>(
     rels: &BTreeMap<String, String>,
 ) -> Result<Vec<SheetInfo>> {
     let mut xml = Reader::from_reader(reader);
-    xml.trim_text(true);
+    xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut sheets = Vec::new();
     loop {
@@ -102,7 +103,7 @@ pub fn parse_workbook<R: BufRead>(
 
 pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
     let mut xml = Reader::from_reader(reader);
-    xml.trim_text(true);
+    xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut strings = Vec::new();
     let mut in_si = false;
@@ -123,7 +124,9 @@ pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
             }
             Ok(Event::Text(t)) => {
                 if in_si {
-                    current.push_str(&t.unescape()?);
+                    let decoded = t.decode()?;
+                    let unescaped = unescape(&decoded)?;
+                    current.push_str(&unescaped);
                 }
             }
             Ok(Event::Eof) => break,
@@ -212,7 +215,7 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
     delimiter: u8,
 ) -> Result<()> {
     let mut xml = Reader::from_reader(reader);
-    xml.trim_text(true);
+    xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut wtr = csv::WriterBuilder::new()
         .flexible(true)
@@ -352,7 +355,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                 }
             }
             Ok(Event::Text(t)) => {
-                let txt = t.unescape()?;
+                let decoded = t.decode()?;
+                let txt = unescape(&decoded)?;
                 if !txt.is_empty() {
                     cell_val.push_str(&txt);
                 }
@@ -408,4 +412,3 @@ mod tests {
         assert_eq!(csv_content, expected_content);
     }
 }
-
