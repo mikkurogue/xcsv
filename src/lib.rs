@@ -22,7 +22,10 @@ pub struct StyleInfo {
 
 pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
     let mut xml = Reader::from_reader(reader);
-    xml.config_mut().trim_text(true);
+    // Due to quick-xml having weird regression on updates
+    // We have to use the 0.31.0 package to get correct angle brackets.
+    // Also means we can not use xml.config_mut().trim_text(true);
+    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut styles = Vec::new();
     let mut num_fmts = BTreeMap::new();
@@ -42,7 +45,8 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
                                         Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
                                 }
                                 b"formatCode" => {
-                                    format_code = Some(String::from_utf8_lossy(&a.value).into_owned());
+                                    format_code =
+                                        Some(String::from_utf8_lossy(&a.value).into_owned());
                                 }
                                 _ => {}
                             }
@@ -61,10 +65,12 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
                         for a in e.attributes().flatten() {
                             match a.key.as_ref() {
                                 b"numFmtId" => {
-                                    num_fmt_id_attr = Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
+                                    num_fmt_id_attr =
+                                        Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
                                 }
                                 b"applyNumberFormat" => {
-                                    apply_num_fmt = String::from_utf8_lossy(&a.value).parse::<u32>()? == 1;
+                                    apply_num_fmt =
+                                        String::from_utf8_lossy(&a.value).parse::<u32>()? == 1;
                                 }
                                 _ => {}
                             }
@@ -78,7 +84,13 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
                                     if let Some(format_code) = num_fmts.get(&id) {
                                         let lower = format_code.to_lowercase();
                                         // More robust heuristic for custom date formats
-                                        if (lower.contains('y') || lower.contains('d') || lower.contains('m')) && !lower.contains('#') && !lower.contains('@') && !lower.contains('[') {
+                                        if (lower.contains('y')
+                                            || lower.contains('d')
+                                            || lower.contains('m'))
+                                            && !lower.contains('#')
+                                            && !lower.contains('@')
+                                            && !lower.contains('[')
+                                        {
                                             style.is_date = true;
                                         }
                                     }
@@ -114,7 +126,7 @@ fn tag_eq_ignore_case(actual: &[u8], expect: &str) -> bool {
 pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, String>> {
     // Map r:Id -> full path inside zip (xl/worksheets/sheet1.xml)
     let mut xml = Reader::from_reader(reader);
-    xml.config_mut().trim_text(true);
+    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut map = BTreeMap::new();
     loop {
@@ -153,7 +165,7 @@ pub fn parse_workbook<R: BufRead>(
     rels: &BTreeMap<String, String>,
 ) -> Result<Vec<SheetInfo>> {
     let mut xml = Reader::from_reader(reader);
-    xml.config_mut().trim_text(true);
+    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut sheets = Vec::new();
     loop {
@@ -192,7 +204,7 @@ pub fn parse_workbook<R: BufRead>(
 
 pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
     let mut xml = Reader::from_reader(reader);
-    xml.config_mut().trim_text(true);
+    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut strings = Vec::new();
     let mut in_si = false;
@@ -213,9 +225,11 @@ pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
             }
             Ok(Event::Text(t)) => {
                 if in_si {
-                    let decoded = t.decode()?;
-                    let unescaped = unescape(&decoded)?;
-                    current.push_str(&unescaped);
+                    // Due to quick-xml 0.38.3 (i assume 0.37+)
+                    // The config is unescaping everything way too early.
+                    // So we have reverted to 0.31.0 to have a functioning parser
+                    // to show correct characters like angle brackets.
+                    current.push_str(&t.unescape()?);
                 }
             }
             Ok(Event::Eof) => break,
@@ -305,7 +319,7 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
     delimiter: u8,
 ) -> Result<()> {
     let mut xml = Reader::from_reader(reader);
-    xml.config_mut().trim_text(true);
+    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut wtr = csv::WriterBuilder::new()
         .flexible(true)
@@ -340,7 +354,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                     }
                     current_row_idx = next;
                     row_vals.clear();
-                    if current_row_idx == 1 { // Assuming the first row is the header
+                    if current_row_idx == 1 {
+                        // Assuming the first row is the header
                         // This will be populated after the row is fully parsed
                         date_column_indices.clear();
                     }
@@ -356,7 +371,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                                 cell_type = Some(String::from_utf8_lossy(&a.value).into_owned())
                             }
                             b"s" => {
-                                cell_style_idx = Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
+                                cell_style_idx =
+                                    Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
                             }
                             _ => {}
                         }
@@ -442,7 +458,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                             row_vals.resize(n, String::new());
                         }
                     }
-                    if current_row_idx == 1 { // Assuming the first row is the header
+                    if current_row_idx == 1 {
+                        // Assuming the first row is the header
                         for (idx, header) in row_vals.iter().enumerate() {
                             if header.to_lowercase().contains("date") {
                                 date_column_indices.push(idx as u32 + 1); // Store 1-based column index
@@ -454,8 +471,9 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                 }
             }
             Ok(Event::Text(t)) => {
-                let decoded = t.decode()?;
-                let txt = unescape(&decoded)?;
+                // Due to quick-xml having weird regression on updates
+                // We have to use the 0.31.0 package to get correct angle brackets.
+                let txt = t.unescape()?;
                 if !txt.is_empty() {
                     cell_val.push_str(&txt);
                 }

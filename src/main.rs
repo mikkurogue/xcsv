@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -8,8 +8,8 @@ use zip::read::ZipArchive;
 
 // Import functions from lib module
 use xcsv::{
-    export_sheet_xml_to_csv, parse_workbook, parse_workbook_rels, read_shared_strings,
-    parse_styles, to_lowercase_filename, StyleInfo,
+    StyleInfo, export_sheet_xml_to_csv, parse_styles, parse_workbook, parse_workbook_rels,
+    read_shared_strings, to_lowercase_filename,
 };
 
 #[derive(Parser, Debug)]
