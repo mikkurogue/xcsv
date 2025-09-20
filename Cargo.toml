@@ -2,14 +2,15 @@
 name = "xcsv"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/mikkurogue/xcsv"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 thiserror = "1"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
-quick-xml = { version = "0.31", features = ["serialize"] }
-csv = "1"
+quick-xml = { version = "0.38.3", features = ["serialize"] }
+csv = "1.3.1"
 serde = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -17,3 +18,9 @@ chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
 assert_cmd = "2.0"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
