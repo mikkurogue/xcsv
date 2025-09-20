@@ -9,7 +9,7 @@ use zip::read::ZipArchive;
 // Import functions from lib module
 use xcsv::{
     export_sheet_xml_to_csv, parse_workbook, parse_workbook_rels, read_shared_strings,
-    to_lowercase_filename,
+    parse_styles, to_lowercase_filename, StyleInfo,
 };
 
 #[derive(Parser, Debug)]
@@ -98,6 +98,14 @@ fn main() -> Result<()> {
                 Vec::new()
             };
 
+            // Stream-parse styles if present
+            let styles: Vec<StyleInfo> = if let Ok(f) = zip.by_name("xl/styles.xml") {
+                let reader = BufReader::new(f);
+                parse_styles(reader)?
+            } else {
+                Vec::new()
+            };
+
             // Workbook rels and sheets
             let rels_map = {
                 let f = zip
@@ -122,7 +130,7 @@ fn main() -> Result<()> {
                     .by_name(&sheet.path_in_zip)
                     .with_context(|| format!("missing {}", sheet.path_in_zip))?;
                 let reader = BufReader::new(f);
-                export_sheet_xml_to_csv(reader, &shared_strings, &out_path, delimiter)?;
+                export_sheet_xml_to_csv(reader, &shared_strings, &styles, &out_path, delimiter)?;
                 eprintln!("wrote {:?}", out_path);
             }
         }
