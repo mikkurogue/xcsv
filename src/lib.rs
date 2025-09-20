@@ -219,6 +219,7 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
         .delimiter(delimiter)
         .from_path(out_path)?;
 
+    let mut num_columns: Option<usize> = None;
     let mut current_row_idx: u32 = 0;
     let mut row_vals: Vec<String> = Vec::new();
     let mut cell_col: Option<u32> = None;
@@ -337,6 +338,15 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                     cell_type = None;
                     cell_val.clear();
                 } else if tag_eq_ignore_case(e.name().as_ref(), "row") {
+                    if num_columns.is_none() {
+                        let last_non_empty = row_vals.iter().rposition(|c| !c.is_empty());
+                        num_columns = Some(last_non_empty.map_or(0, |i| i + 1));
+                    }
+                    if let Some(n) = num_columns {
+                        if row_vals.len() < n {
+                            row_vals.resize(n, String::new());
+                        }
+                    }
                     wtr.write_record(row_vals.iter())?;
                     row_vals.clear();
                 }
