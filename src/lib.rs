@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use chrono;
-use quick_xml::escape::unescape;
+
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use std::collections::BTreeMap;
@@ -22,86 +22,110 @@ pub struct StyleInfo {
 
 pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
     let mut xml = Reader::from_reader(reader);
-    // Due to quick-xml having weird regression on updates
-    // We have to use the 0.31.0 package to get correct angle brackets.
-    // Also means we can not use xml.config_mut().trim_text(true);
-    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut styles = Vec::new();
     let mut num_fmts = BTreeMap::new();
     let mut in_cell_xfs = false;
 
-    loop {
-        match xml.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) => {
-                match e.name().as_ref() {
-                    b"numFmt" => {
-                        let mut num_fmt_id = None;
-                        let mut format_code = None;
-                        for a in e.attributes().flatten() {
-                            match a.key.as_ref() {
-                                b"numFmtId" => {
-                                    num_fmt_id =
-                                        Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
-                                }
-                                b"formatCode" => {
-                                    format_code =
-                                        Some(String::from_utf8_lossy(&a.value).into_owned());
-                                }
-                                _ => {}
-                            }
-                        }
-                        if let (Some(id), Some(code)) = (num_fmt_id, format_code) {
-                            num_fmts.insert(id, code);
-                        }
+    // Helper closure to process attributes of an <xf> tag
+    let process_xf = |attrs: quick_xml::events::attributes::Attributes,
+                      num_fmts: &BTreeMap<u32, String>|
+     -> Result<StyleInfo> {
+        let mut style = StyleInfo::default();
+        let mut num_fmt_id_attr = None;
+        let mut apply_num_fmt = true;
+
+        for a in attrs.flatten() {
+            match a.key.as_ref() {
+                b"numFmtId" => {
+                    num_fmt_id_attr = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
+                }
+                b"applyNumberFormat" => {
+                    apply_num_fmt =
+                        String::from_utf8_lossy(&a.value).parse::<u32>().ok() == Some(1);
+                }
+                _ => {}
+            }
+        }
+
+        if apply_num_fmt {
+            if let Some(id) = num_fmt_id_attr {
+                // Check built-in formats
+                let is_builtin_date =
+                    matches!(id, 14..=22 | 27..=36 | 45..=47 | 50..=58 | 67..=71 | 75..=81);
+                if is_builtin_date {
+                    style.is_date = true;
+                } else if let Some(format_code) = num_fmts.get(&id) {
+                    // Check custom formats
+                    let lower = format_code.to_lowercase();
+                    if (lower.contains('y') || lower.contains('d') || lower.contains('m'))
+                        && !lower.contains('#')
+                    {
+                        style.is_date = true;
                     }
-                    b"cellXfs" => {
-                        in_cell_xfs = true;
-                    }
-                    b"xf" if in_cell_xfs => {
-                        let mut style = StyleInfo::default();
-                        let mut num_fmt_id_attr = None;
-                        let mut apply_num_fmt = true;
-                        for a in e.attributes().flatten() {
-                            match a.key.as_ref() {
-                                b"numFmtId" => {
-                                    num_fmt_id_attr =
-                                        Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
-                                }
-                                b"applyNumberFormat" => {
-                                    apply_num_fmt =
-                                        String::from_utf8_lossy(&a.value).parse::<u32>()? == 1;
-                                }
-                                _ => {}
-                            }
-                        }
-                        if apply_num_fmt {
-                            if let Some(id) = num_fmt_id_attr {
-                                // Comprehensive built-in date formats
-                                style.is_date = matches!(id, 14..=22 | 30 | 45..=47 | 27..=29 | 36 | 50..=59 | 67..=71 | 75..=81);
-                                // Check custom formats if not a built-in date format
-                                if !style.is_date {
-                                    if let Some(format_code) = num_fmts.get(&id) {
-                                        let lower = format_code.to_lowercase();
-                                        // More robust heuristic for custom date formats
-                                        if (lower.contains('y')
-                                            || lower.contains('d')
-                                            || lower.contains('m'))
-                                            && !lower.contains('#')
-                                            && !lower.contains('@')
-                                            && !lower.contains('[')
-                                        {
-                                            style.is_date = true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        styles.push(style);
-                    }
-                    _ => {}
                 }
             }
+        }
+        Ok(style)
+    };
+
+    loop {
+        match xml.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => match e.name().as_ref() {
+                b"numFmt" => {
+                    let mut num_fmt_id = None;
+                    let mut format_code = None;
+                    for a in e.attributes().flatten() {
+                        match a.key.as_ref() {
+                            b"numFmtId" => {
+                                num_fmt_id =
+                                    String::from_utf8_lossy(&a.value).parse::<u32>().ok();
+                            }
+                            b"formatCode" => {
+                                format_code =
+                                    Some(String::from_utf8_lossy(&a.value).into_owned());
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(id), Some(code)) = (num_fmt_id, format_code) {
+                        num_fmts.insert(id, code);
+                    }
+                    xml.read_to_end_into(e.name(), &mut Vec::new())?;
+                }
+                b"cellXfs" => in_cell_xfs = true,
+                b"xf" if in_cell_xfs => {
+                    styles.push(process_xf(e.attributes(), &num_fmts)?);
+                    xml.read_to_end_into(e.name(), &mut Vec::new())?;
+                }
+                _ => {}
+            },
+            Ok(Event::Empty(e)) => match e.name().as_ref() {
+                b"numFmt" => {
+                    let mut num_fmt_id = None;
+                    let mut format_code = None;
+                    for a in e.attributes().flatten() {
+                        match a.key.as_ref() {
+                            b"numFmtId" => {
+                                num_fmt_id =
+                                    String::from_utf8_lossy(&a.value).parse::<u32>().ok();
+                            }
+                            b"formatCode" => {
+                                format_code =
+                                    Some(String::from_utf8_lossy(&a.value).into_owned());
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(id), Some(code)) = (num_fmt_id, format_code) {
+                        num_fmts.insert(id, code);
+                    }
+                }
+                b"xf" if in_cell_xfs => {
+                    styles.push(process_xf(e.attributes(), &num_fmts)?);
+                }
+                _ => {}
+            },
             Ok(Event::End(e)) => {
                 if e.name().as_ref() == b"cellXfs" {
                     in_cell_xfs = false;
@@ -163,15 +187,16 @@ pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, Str
 pub fn parse_workbook<R: BufRead>(
     reader: R,
     rels: &BTreeMap<String, String>,
-) -> Result<Vec<SheetInfo>> {
+) -> Result<(Vec<SheetInfo>, bool)> {
     let mut xml = Reader::from_reader(reader);
     // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut sheets = Vec::new();
+    let mut is_1904 = false;
     loop {
         match xml.read_event_into(&mut buf) {
-            Ok(Event::Empty(e)) | Ok(Event::Start(e)) => {
-                if tag_eq_ignore_case(e.name().as_ref(), "sheet") {
+            Ok(Event::Empty(e)) | Ok(Event::Start(e)) => match e.name().as_ref() {
+                b"sheet" => {
                     let mut name = None;
                     let mut r_id = None;
                     for a in e.attributes().flatten() {
@@ -192,14 +217,24 @@ pub fn parse_workbook<R: BufRead>(
                         }
                     }
                 }
-            }
+                b"workbookPr" => {
+                    for a in e.attributes().flatten() {
+                        if a.key.as_ref() == b"date1904" {
+                            if let Ok(val) = a.decode_and_unescape_value(&xml) {
+                                is_1904 = val == "1" || val == "true";
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            },
             Ok(Event::Eof) => break,
             Err(e) => return Err(anyhow::anyhow!("XML error in workbook.xml: {}", e)),
             _ => {}
         }
         buf.clear();
     }
-    Ok(sheets)
+    Ok((sheets, is_1904))
 }
 
 pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
@@ -293,21 +328,31 @@ pub fn to_lowercase_filename(name: &str) -> String {
 
 // Excel date/time utilities
 // Excel stores dates as serial numbers: days since 1900-01-01 (with 1900 incorrectly treated as leap year)
-const EXCEL_EPOCH_DAYS: i32 = 25569; // Days from 1970-01-01 to 1900-01-01
+
 const SECONDS_PER_DAY: f64 = 86400.0;
 
-pub fn excel_serial_to_iso_date(serial: f64) -> Option<String> {
-    // Excel serial date: integer part is days since 1900-01-01, fractional part is time
+pub fn excel_serial_to_iso_date(serial: f64, is_1904: bool) -> Option<String> {
+    let excel_epoch_days = if is_1904 {
+        24107 // Days from 1970-01-01 to 1904-01-01
+    } else {
+        25569 // Days from 1970-01-01 to 1900-01-01
+    };
+
     let days = serial.floor() as i32;
     let time_fraction = serial - days as f64;
 
-    // Convert to Unix timestamp (seconds since 1970-01-01)
-    let unix_days = days - EXCEL_EPOCH_DAYS;
-    let unix_seconds = (unix_days as f64 * SECONDS_PER_DAY) + (time_fraction * SECONDS_PER_DAY);
+    // In the 1900 system, Excel incorrectly treats 1900 as a leap year.
+    // This means any date after Feb 28, 1900, is off by one.
+    // Serial numbers 1-59 are unaffected. 60 is "Feb 29, 1900". 61 is Mar 1, 1900.
+    // Our epoch calculation for 1900 already accounts for this by starting from 1899-12-30,
+    // so we don't need a special adjustment here if using a correct epoch day count.
+    // The constant 25569 = days between 1970-01-01 and 1899-12-30.
 
-    // Convert to ISO 8601 format
-    let timestamp = unix_seconds as i64;
-    let datetime = chrono::DateTime::from_timestamp(timestamp, 0)?;
+    let unix_days = days - excel_epoch_days;
+    let unix_seconds =
+        (unix_days as f64 * SECONDS_PER_DAY) + (time_fraction * SECONDS_PER_DAY).round();
+
+    let datetime = chrono::DateTime::from_timestamp(unix_seconds as i64, 0)?;
     Some(datetime.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
 
@@ -315,11 +360,11 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
     reader: R,
     shared_strings: &[String],
     styles: &[StyleInfo],
+    is_1904: bool,
     out_path: &Path,
     delimiter: u8,
 ) -> Result<()> {
     let mut xml = Reader::from_reader(reader);
-    // xml.config_mut().trim_text(true);
     let mut buf = Vec::new();
     let mut wtr = csv::WriterBuilder::new()
         .flexible(true)
@@ -329,7 +374,6 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
     let mut num_columns: Option<usize> = None;
     let mut current_row_idx: u32 = 0;
     let mut row_vals: Vec<String> = Vec::new();
-    let mut date_column_indices: Vec<u32> = Vec::new();
     let mut cell_col: Option<u32> = None;
     let mut cell_type: Option<String> = None;
     let mut cell_style_idx: Option<u32> = None;
@@ -339,7 +383,6 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
         match xml.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
                 if tag_eq_ignore_case(e.name().as_ref(), "row") {
-                    // ensure row index continuity
                     let mut r_attr = None;
                     for a in e.attributes().flatten() {
                         if a.key.as_ref() == b"r" {
@@ -348,31 +391,28 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                     }
                     let next = r_attr.unwrap_or(current_row_idx + 1);
                     while current_row_idx + 1 < next {
-                        // write empty row
                         wtr.write_record(std::iter::empty::<String>())?;
                         current_row_idx += 1;
                     }
                     current_row_idx = next;
                     row_vals.clear();
-                    if current_row_idx == 1 {
-                        // Assuming the first row is the header
-                        // This will be populated after the row is fully parsed
-                        date_column_indices.clear();
-                    }
                 } else if tag_eq_ignore_case(e.name().as_ref(), "c") {
                     cell_col = None;
                     cell_type = None;
                     cell_val.clear();
-                    let mut r_attr = None;
+                    cell_style_idx = None;
+                    let mut r_attr: Option<CellRef> = None;
                     for a in e.attributes().flatten() {
                         match a.key.as_ref() {
-                            b"r" => r_attr = parse_cell_ref(&String::from_utf8_lossy(&a.value)),
+                            b"r" => {
+                                r_attr = parse_cell_ref(&String::from_utf8_lossy(&a.value));
+                            }
                             b"t" => {
                                 cell_type = Some(String::from_utf8_lossy(&a.value).into_owned())
                             }
                             b"s" => {
                                 cell_style_idx =
-                                    Some(String::from_utf8_lossy(&a.value).parse::<u32>()?);
+                                    String::from_utf8_lossy(&a.value).parse::<u32>().ok();
                             }
                             _ => {}
                         }
@@ -381,10 +421,9 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                         cell_col = Some(cr.col);
                     }
                 } else if tag_eq_ignore_case(e.name().as_ref(), "is") {
-                    // Inline string container - reset cell_val to collect text
                     cell_val.clear();
                 } else if tag_eq_ignore_case(e.name().as_ref(), "t") {
-                    // <t> element inside inline string - text will come in Text event
+                    // text will come in Text event
                 }
             }
             Ok(Event::End(e)) => {
@@ -394,33 +433,23 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                     if row_vals.len() < needed {
                         row_vals.resize(needed, String::new());
                     }
+
                     let v = match cell_type.as_deref() {
                         Some("s") => {
-                            // Shared string reference
                             if let Ok(idx) = cell_val.trim().parse::<usize>() {
                                 shared_strings.get(idx).cloned().unwrap_or_default()
                             } else {
                                 String::new()
                             }
                         }
-                        Some("b") => {
-                            // Boolean
-                            if cell_val.trim() == "1" {
-                                "TRUE".to_string()
-                            } else {
-                                "FALSE".to_string()
-                            }
+                        Some("b") => if cell_val.trim() == "1" {
+                            "TRUE"
+                        } else {
+                            "FALSE"
                         }
-                        Some("inlineStr") => {
-                            // Inline string (handled in text events)
-                            cell_val.clone()
-                        }
-                        Some("str") => {
-                            // Formula result as string
-                            cell_val.clone()
-                        }
+                        .to_string(),
+                        Some("inlineStr") | Some("str") => cell_val.clone(),
                         Some("e") => {
-                            // Error value
                             format!("#ERROR:{}", cell_val)
                         }
                         _ => {
@@ -430,8 +459,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                                     .and_then(|idx| styles.get(idx as usize))
                                     .map_or(false, |style_info| style_info.is_date);
 
-                                if is_date_style || date_column_indices.contains(&col) {
-                                    if let Some(iso_date) = excel_serial_to_iso_date(num) {
+                                if is_date_style {
+                                    if let Some(iso_date) = excel_serial_to_iso_date(num, is_1904) {
                                         iso_date
                                     } else {
                                         cell_val.clone()
@@ -445,9 +474,11 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                         }
                     };
                     row_vals[(col as usize) - 1] = v;
+
                     cell_col = None;
                     cell_type = None;
                     cell_val.clear();
+                    cell_style_idx = None;
                 } else if tag_eq_ignore_case(e.name().as_ref(), "row") {
                     if num_columns.is_none() {
                         let last_non_empty = row_vals.iter().rposition(|c| !c.is_empty());
@@ -458,21 +489,11 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                             row_vals.resize(n, String::new());
                         }
                     }
-                    if current_row_idx == 1 {
-                        // Assuming the first row is the header
-                        for (idx, header) in row_vals.iter().enumerate() {
-                            if header.to_lowercase().contains("date") {
-                                date_column_indices.push(idx as u32 + 1); // Store 1-based column index
-                            }
-                        }
-                    }
                     wtr.write_record(row_vals.iter())?;
                     row_vals.clear();
                 }
             }
             Ok(Event::Text(t)) => {
-                // Due to quick-xml having weird regression on updates
-                // We have to use the 0.31.0 package to get correct angle brackets.
                 let txt = t.unescape()?;
                 if !txt.is_empty() {
                     cell_val.push_str(&txt);
@@ -522,7 +543,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let out_path = temp_file.path();
 
-        export_sheet_xml_to_csv(reader, &shared_strings, &[], out_path, b',').unwrap();
+        export_sheet_xml_to_csv(reader, &shared_strings, &[], false, out_path, b',').unwrap();
 
         let csv_content = fs::read_to_string(out_path).unwrap();
         let expected_content = "origin_latitude,origin_longitude\n10.123,-20.456\n";
