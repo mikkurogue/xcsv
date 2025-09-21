@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
                 parse_workbook_rels(reader)?
             };
             // Stream-parse workbook
-            let sheets = {
+            let (sheets, _) = {
                 let f = zip
                     .by_name("xl/workbook.xml")
                     .context("missing xl/workbook.xml")?;
@@ -114,7 +114,7 @@ fn main() -> Result<()> {
                 let reader = BufReader::new(f);
                 parse_workbook_rels(reader)?
             };
-            let sheets = {
+            let (sheets, is_1904) = {
                 let f = zip
                     .by_name("xl/workbook.xml")
                     .context("missing xl/workbook.xml")?;
@@ -130,7 +130,7 @@ fn main() -> Result<()> {
                     .by_name(&sheet.path_in_zip)
                     .with_context(|| format!("missing {}", sheet.path_in_zip))?;
                 let reader = BufReader::new(f);
-                export_sheet_xml_to_csv(reader, &shared_strings, &styles, &out_path, delimiter)?;
+                export_sheet_xml_to_csv(reader, &shared_strings, &styles, is_1904, &out_path, delimiter)?;
                 eprintln!("wrote {:?}", out_path);
             }
         }
