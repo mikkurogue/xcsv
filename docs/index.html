@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xcsv - Excel to CSV Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+        }
+        .bg-dark {
+            background-color: #111;
+        }
+        .border-violet {
+            border-color: #8b5cf6;
+        }
+        .text-violet {
+            color: #8b5cf6;
+        }
+        .hover-bg-violet:hover {
+            background-color: #8b5cf6;
+            color: #111;
+        }
+    </style>
+</head>
+<body class="font-sans">
+    <div class="container mx-auto p-8">
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-violet">xcsv</h1>
+            <p class="text-xl text-gray-400 mt-2">A blazingly fast, memory-efficient Excel (.xlsx) to CSV converter.</p>
+            <a href="https://github.com/mikkurogue/xcsv" class="inline-block bg-dark border border-violet text-violet rounded-lg px-6 py-2 mt-6 hover-bg-violet transition">View on GitHub</a>
+            <a href="https://github.com/mikkurogue/xcsv/releases" class="inline-block bg-dark border border-violet text-violet rounded-lg px-6 py-2 mt-6 hover-bg-violet transition">Download Pre-built Binaries</a>
+        </header>
+
+        <main>
+            <section id="about" class="mb-12">
+                <h2 class="text-3xl font-bold border-b-2 border-violet pb-2">What is xcsv?</h2>
+                <p class="mt-4 text-lg">
+                    xcsv is a command-line tool written in Rust that converts Excel (.xlsx) workbook sheets into individual CSV files. It's designed to be fast and memory-efficient by streaming data directly, without loading entire workbooks into memory. This makes it ideal for handling very large Excel files.
+                </p>
+            </section>
+
+            <section id="installation" class="mb-12">
+                <h2 class="text-3xl font-bold border-b-2 border-violet pb-2">Installation</h2>
+                <div class="mt-4 space-y-8">
+                    <div>
+                        <h3 class="text-2xl font-semibold">Pre-built Binaries</h3>
+                        <p class="mt-2">You can download pre-built binaries for your operating system from the <a href="https://github.com/mikkurogue/xcsv/releases" class="text-violet underline">GitHub releases page</a>.</p>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-semibold">From Source</h3>
+                        <p class="mt-2">To build from source, you'll need to have the Rust toolchain installed. You can then use cargo to build and install:</p>
+                        <pre class="bg-dark p-4 rounded-lg mt-2"><code class="language-bash">cargo build --release</code></pre>
+                        <p class="mt-2">The binary will be located at <code>target/release/xcsv</code>.</p>
+                        <p class="mt-2">Alternatively, you can install it directly using:</p>
+                        <pre class="bg-dark p-4 rounded-lg mt-2"><code class="language-bash">cargo install --path . --locked --force</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="usage" class="mb-12">
+                <h2 class="text-3xl font-bold border-b-2 border-violet pb-2">Usage</h2>
+                <div class="mt-4 space-y-8">
+                    <div>
+                        <h3 class="text-2xl font-semibold">List Sheets</h3>
+                        <p class="mt-2">To see a list of all sheet names in an Excel file:</p>
+                        <pre class="bg-dark p-4 rounded-lg mt-2"><code class="language-bash">xcsv &lt;path-to-file.xlsx&gt; list</code></pre>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-semibold">Export Sheets</h3>
+                        <p class="mt-2">To export all sheets to a specified directory:</p>
+                        <pre class="bg-dark p-4 rounded-lg mt-2"><code class="language-bash">xcsv &lt;path-to-file.xlsx&gt; export -o &lt;output-dir&gt;</code></pre>
+                        <p class="mt-2">You can also specify a different delimiter (the default is a comma):</p>
+                        <pre class="bg-dark p-4 rounded-lg mt-2"><code class="language-bash">xcsv &lt;path-to-file.xlsx&gt; export -o &lt;output-dir&gt; -d ";"</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="features">
+                <h2 class="text-3xl font-bold border-b-2 border-violet pb-2">Features</h2>
+                <ul class="list-disc list-inside mt-4 space-y-2 text-lg">
+                    <li>Low memory usage via streaming.</li>
+                    <li>Automatic conversion of Excel dates and times to ISO 8601 format.</li>
+                    <li>Supports various cell types: strings, booleans, numbers, formulas, etc.</li>
+                    <li>Option to use different delimiters like commas or semicolons.</li>
+                    <li>Generated filenames are lowercased and sanitized.</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer class="text-center text-gray-500 mt-12">
+            <p>&copy; 2025 xcsv. All rights reserved.</p>
+        </footer>
+    </div>
+    <script>
+        hljs.highlightAll();
+    </script>
+</body>
+</html>

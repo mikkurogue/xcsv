@@ -108,14 +108,11 @@ xcsv input.xlsx export -o out --delimiter ";"
 ### Limitations / roadmap
 
 - Only `.xlsx` (Office Open XML) files are supported. Legacy `.xls` is not supported.
-- Date detection is heuristic-based (numbers ≥1000 or with fractional parts in reasonable date range)
 - Number format styles from Excel are not preserved (dates converted to ISO format, not original formatting)
 - Future options that could be added:
   - Select specific sheets to export
   - Custom CSV quote/escape characters
   - Normalize row lengths to max columns (pad trailing empties)
-  - Preserve Excel number formatting
-  - Parse number format codes for more accurate date detection
 
 ### License
 
