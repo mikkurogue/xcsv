@@ -454,22 +454,19 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                         }
                         _ => {
                             // Numeric value
-                            if let Ok(num) = cell_val.trim().parse::<f64>() {
-                                let is_date_style = cell_style_idx
-                                    .and_then(|idx| styles.get(idx as usize))
-                                    .map_or(false, |style_info| style_info.is_date);
+                            match cell_val.trim().parse::<f64>() {
+                                Ok(num) => {
+                                    let is_date_style = cell_style_idx
+                                        .and_then(|idx| styles.get(idx as usize))
+                                        .is_some_and(|style_info| style_info.is_date);
 
-                                if is_date_style {
-                                    if let Some(iso_date) = excel_serial_to_iso_date(num, is_1904) {
-                                        iso_date
+                                    if is_date_style {
+                                        excel_serial_to_iso_date(num, is_1904).unwrap_or_else(|| cell_val.clone())
                                     } else {
                                         cell_val.clone()
                                     }
-                                } else {
-                                    cell_val.clone()
                                 }
-                            } else {
-                                cell_val.clone()
+                                Err(_) => cell_val.clone(),
                             }
                         }
                     };
