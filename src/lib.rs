@@ -35,18 +35,15 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
         let mut num_fmt_id_attr = None;
         let mut apply_num_fmt = true;
 
-        for a in attrs.flatten() {
-            match a.key.as_ref() {
-                b"numFmtId" => {
-                    num_fmt_id_attr = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
-                }
-                b"applyNumberFormat" => {
-                    apply_num_fmt =
-                        String::from_utf8_lossy(&a.value).parse::<u32>().ok() == Some(1);
-                }
-                _ => {}
+        attrs.flatten().for_each(|a| match a.key.as_ref() {
+            b"numFmtId" => {
+                num_fmt_id_attr = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
             }
-        }
+            b"applyNumberFormat" => {
+                apply_num_fmt = String::from_utf8_lossy(&a.value).parse::<u32>().ok() == Some(1);
+            }
+            _ => {}
+        });
 
         if apply_num_fmt {
             if let Some(id) = num_fmt_id_attr {
@@ -75,19 +72,17 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
                 b"numFmt" => {
                     let mut num_fmt_id = None;
                     let mut format_code = None;
-                    for a in e.attributes().flatten() {
-                        match a.key.as_ref() {
-                            b"numFmtId" => {
-                                num_fmt_id =
-                                    String::from_utf8_lossy(&a.value).parse::<u32>().ok();
-                            }
-                            b"formatCode" => {
-                                format_code =
-                                    Some(String::from_utf8_lossy(&a.value).into_owned());
-                            }
-                            _ => {}
+
+                    e.attributes().flatten().for_each(|a| match a.key.as_ref() {
+                        b"numFmtId" => {
+                            num_fmt_id = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
                         }
-                    }
+                        b"formatCode" => {
+                            format_code = Some(String::from_utf8_lossy(&a.value).into_owned());
+                        }
+                        _ => {}
+                    });
+
                     if let (Some(id), Some(code)) = (num_fmt_id, format_code) {
                         num_fmts.insert(id, code);
                     }
@@ -104,19 +99,17 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
                 b"numFmt" => {
                     let mut num_fmt_id = None;
                     let mut format_code = None;
-                    for a in e.attributes().flatten() {
-                        match a.key.as_ref() {
-                            b"numFmtId" => {
-                                num_fmt_id =
-                                    String::from_utf8_lossy(&a.value).parse::<u32>().ok();
-                            }
-                            b"formatCode" => {
-                                format_code =
-                                    Some(String::from_utf8_lossy(&a.value).into_owned());
-                            }
-                            _ => {}
+
+                    e.attributes().flatten().for_each(|a| match a.key.as_ref() {
+                        b"numFmtId" => {
+                            num_fmt_id = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
                         }
-                    }
+                        b"formatCode" => {
+                            format_code = Some(String::from_utf8_lossy(&a.value).into_owned());
+                        }
+                        _ => {}
+                    });
+
                     if let (Some(id), Some(code)) = (num_fmt_id, format_code) {
                         num_fmts.insert(id, code);
                     }
@@ -159,17 +152,15 @@ pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, Str
                 if tag_eq_ignore_case(e.name().as_ref(), "Relationship") {
                     let mut id = None;
                     let mut target = None;
-                    for a in e.attributes().flatten() {
-                        match a.key.as_ref() {
-                            b"Id" | b"r:Id" => {
-                                id = Some(String::from_utf8_lossy(&a.value).into_owned())
-                            }
-                            b"Target" => {
-                                target = Some(String::from_utf8_lossy(&a.value).into_owned())
-                            }
-                            _ => {}
+
+                    e.attributes().flatten().for_each(|a| match a.key.as_ref() {
+                        b"Id" | b"r:Id" => {
+                            id = Some(String::from_utf8_lossy(&a.value).into_owned())
                         }
-                    }
+                        b"Target" => target = Some(String::from_utf8_lossy(&a.value).into_owned()),
+                        _ => {}
+                    });
+
                     if let (Some(id), Some(target)) = (id, target) {
                         map.insert(id, format!("xl/{}", target.trim_start_matches('/')));
                     }
@@ -199,15 +190,15 @@ pub fn parse_workbook<R: BufRead>(
                 b"sheet" => {
                     let mut name = None;
                     let mut r_id = None;
-                    for a in e.attributes().flatten() {
-                        match a.key.as_ref() {
-                            b"name" => name = Some(String::from_utf8_lossy(&a.value).into_owned()),
-                            b"id" | b"r:id" => {
-                                r_id = Some(String::from_utf8_lossy(&a.value).into_owned())
-                            }
-                            _ => {}
+
+                    e.attributes().flatten().for_each(|a| match a.key.as_ref() {
+                        b"name" => name = Some(String::from_utf8_lossy(&a.value).into_owned()),
+                        b"id" | b"r:id" => {
+                            r_id = Some(String::from_utf8_lossy(&a.value).into_owned())
                         }
-                    }
+                        _ => {}
+                    });
+
                     if let (Some(name), Some(rid)) = (name, r_id) {
                         if let Some(target) = rels.get(&rid) {
                             sheets.push(SheetInfo {
@@ -218,13 +209,13 @@ pub fn parse_workbook<R: BufRead>(
                     }
                 }
                 b"workbookPr" => {
-                    for a in e.attributes().flatten() {
+                    e.attributes().flatten().into_iter().for_each(|a| {
                         if a.key.as_ref() == b"date1904" {
                             if let Ok(val) = a.decode_and_unescape_value(&xml) {
                                 is_1904 = val == "1" || val == "true";
                             }
                         }
-                    }
+                    });
                 }
                 _ => {}
             },
@@ -284,28 +275,33 @@ pub struct CellRef {
 
 pub fn col_to_index(col: &str) -> u32 {
     let mut n: u32 = 0;
-    for b in col.bytes() {
+
+    col.bytes().into_iter().for_each(|b| {
         if !(b'A'..=b'Z').contains(&b) {
-            break;
+            return;
         }
         n = n * 26 + ((b - b'A' + 1) as u32);
-    }
+    });
+
     n
 }
 
 pub fn parse_cell_ref(s: &str) -> Option<CellRef> {
     let mut col = String::new();
     let mut row = String::new();
-    for ch in s.chars() {
-        if ch.is_ascii_alphabetic() {
-            col.push(ch.to_ascii_uppercase());
+
+    s.chars().into_iter().for_each(|c| {
+        if c.is_ascii_alphabetic() {
+            col.push(c.to_ascii_uppercase());
         } else {
-            row.push(ch);
+            row.push(c);
         }
-    }
+    });
+
     if col.is_empty() || row.is_empty() {
         return None;
     }
+
     Some(CellRef {
         col: col_to_index(&col),
         row: row.parse().ok()?,
@@ -323,6 +319,7 @@ pub fn to_lowercase_filename(name: &str) -> String {
             }
         })
         .collect();
+
     if s.is_empty() { "sheet".to_string() } else { s }
 }
 
@@ -384,11 +381,13 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
             Ok(Event::Start(e)) => {
                 if tag_eq_ignore_case(e.name().as_ref(), "row") {
                     let mut r_attr = None;
-                    for a in e.attributes().flatten() {
+
+                    e.attributes().flatten().into_iter().for_each(|a| {
                         if a.key.as_ref() == b"r" {
                             r_attr = String::from_utf8_lossy(&a.value).parse::<u32>().ok();
                         }
-                    }
+                    });
+
                     let next = r_attr.unwrap_or(current_row_idx + 1);
                     while current_row_idx + 1 < next {
                         wtr.write_record(std::iter::empty::<String>())?;
@@ -402,8 +401,11 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                     cell_val.clear();
                     cell_style_idx = None;
                     let mut r_attr: Option<CellRef> = None;
-                    for a in e.attributes().flatten() {
-                        match a.key.as_ref() {
+
+                    e.attributes()
+                        .flatten()
+                        .into_iter()
+                        .for_each(|a| match a.key.as_ref() {
                             b"r" => {
                                 r_attr = parse_cell_ref(&String::from_utf8_lossy(&a.value));
                             }
@@ -415,8 +417,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                                     String::from_utf8_lossy(&a.value).parse::<u32>().ok();
                             }
                             _ => {}
-                        }
-                    }
+                        });
+
                     if let Some(cr) = r_attr {
                         cell_col = Some(cr.col);
                     }
@@ -461,7 +463,8 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
                                         .is_some_and(|style_info| style_info.is_date);
 
                                     if is_date_style {
-                                        excel_serial_to_iso_date(num, is_1904).unwrap_or_else(|| cell_val.clone())
+                                        excel_serial_to_iso_date(num, is_1904)
+                                            .unwrap_or_else(|| cell_val.clone())
                                     } else {
                                         cell_val.clone()
                                     }
