@@ -1,15 +1,11 @@
-use std::fs::File;
-use std::io::{BufReader};
-use std::path::{Path, PathBuf};
+use std::io::BufReader;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use zip::read::ZipArchive;
-
-// Import functions from lib module
-use xcsv::{
-    StyleInfo, export_sheet_xml_to_csv, parse_styles, parse_workbook, parse_workbook_rels,
-    read_shared_strings, to_lowercase_filename,
+use libxcsv::{
+    StyleInfo, export_sheet_xml_to_csv, open_zip, parse_styles, parse_workbook,
+    parse_workbook_rels, read_shared_strings, to_lowercase_filename,
 };
 
 #[derive(Parser, Debug)]
@@ -51,13 +47,6 @@ fn parse_delimiter(s: &str) -> Result<u8, String> {
             s
         )),
     }
-}
-
-fn open_zip(path: &Path) -> Result<ZipArchive<BufReader<File>>> {
-    let file = File::open(path).with_context(|| format!("Failed to open {:?}", path))?;
-    let reader = BufReader::new(file);
-    let zip = ZipArchive::new(reader).context("Failed to read XLSX (zip) archive")?;
-    Ok(zip)
 }
 
 fn main() -> Result<()> {
@@ -130,7 +119,14 @@ fn main() -> Result<()> {
                     .by_name(&sheet.path_in_zip)
                     .with_context(|| format!("missing {}", sheet.path_in_zip))?;
                 let reader = BufReader::new(f);
-                export_sheet_xml_to_csv(reader, &shared_strings, &styles, is_1904, &out_path, delimiter)?;
+                export_sheet_xml_to_csv(
+                    reader,
+                    &shared_strings,
+                    &styles,
+                    is_1904,
+                    &out_path,
+                    delimiter,
+                )?;
                 eprintln!("wrote {:?}", out_path);
             }
         }

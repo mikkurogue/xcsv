@@ -1,13 +1,13 @@
-// Library interface for xcsv - exposes functions for testing
-
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono;
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use std::collections::BTreeMap;
-use std::io::BufRead;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
+use zip::ZipArchive;
 
 #[derive(Debug, Clone)]
 pub struct SheetInfo {
@@ -18,6 +18,14 @@ pub struct SheetInfo {
 #[derive(Debug, Clone, Default)]
 pub struct StyleInfo {
     pub is_date: bool,
+}
+
+pub fn open_zip(path: &Path) -> Result<ZipArchive<BufReader<File>>> {
+    let file = File::open(path)?;
+
+    let reader = BufReader::new(file);
+    let zip = ZipArchive::new(reader).context("Failed to read XLSX (zip) archive")?;
+    Ok(zip)
 }
 
 pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
