@@ -13,7 +13,9 @@ Convert Excel (.xlsx) workbooks to CSV, one CSV per sheet.
 
 ### Install / Build
 
-Build release binary:
+Note; building from source can result in unintended behaviour I recommend to always follow the installation steps found on each release.
+
+Build from source:
 
 ```bash
 cargo build --release
@@ -30,6 +32,9 @@ Installation with `cargo install`
 ```bash
 cargo install --path . --locked --force
 ```
+
+Install release;
+Follow the instructions at [releases](https://github.com/mikkurogue/xcsv/releases)
 
 ### Usage
 
