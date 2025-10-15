@@ -8,7 +8,7 @@ repository = "https://github.com/mikkurogue/xcsv"
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 thiserror = "1"
-libxcsv = { version = "0.1.0", path = "libxcsv" }
+libxcsv = { version = "0.1.2", path = "libxcsv" }
 
 # The profile that 'dist' will build with
 [profile.dist]
