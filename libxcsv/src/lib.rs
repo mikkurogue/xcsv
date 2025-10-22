@@ -9,17 +9,26 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use zip::ZipArchive;
 
+/// Information about a sheet in the workbook
+/// name: The name of the sheet
+/// path_in_zip: The path to the sheet XML inside the zip archive
 #[derive(Debug, Clone)]
 pub struct SheetInfo {
     pub name: String,
     pub path_in_zip: String,
 }
 
+/// Information about a cell style
 #[derive(Debug, Clone, Default)]
 pub struct StyleInfo {
     pub is_date: bool,
 }
 
+/// Open the XLSX file as a ZipArchive
+/// Returns a new ZipArchive<BufReader<File>>
+///
+/// Examples
+/// let zip = open_zip(Path::new("example.xlsx"))?;
 pub fn open_zip(path: &Path) -> Result<ZipArchive<BufReader<File>>> {
     let file = File::open(path)?;
 
@@ -28,6 +37,8 @@ pub fn open_zip(path: &Path) -> Result<ZipArchive<BufReader<File>>> {
     Ok(zip)
 }
 
+/// Parse the styles.xml to extract cell styles and identify date formats
+/// Returns a vector of StyleInfo
 pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
     let mut xml = Reader::from_reader(reader);
     let mut buf = Vec::new();
@@ -148,6 +159,8 @@ fn tag_eq_ignore_case(actual: &[u8], expect: &str) -> bool {
         || actual.ends_with(expect.to_ascii_uppercase().as_bytes())
 }
 
+/// Parse the workbook rels to make sure to find what sheet matches what data and the cell matching
+/// per row and sheet.
 pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, String>> {
     // Map r:Id -> full path inside zip (xl/worksheets/sheet1.xml)
     let mut xml = Reader::from_reader(reader);
@@ -183,6 +196,8 @@ pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, Str
     Ok(map)
 }
 
+/// Parse the workbook itself
+/// Returns a vector of SheetInfo and a boolean indicating if the 1904 date system is used
 pub fn parse_workbook<R: BufRead>(
     reader: R,
     rels: &BTreeMap<String, String>,
@@ -236,6 +251,8 @@ pub fn parse_workbook<R: BufRead>(
     Ok((sheets, is_1904))
 }
 
+/// Read the shared strings from the excel file
+/// Returns a vector of strings
 pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
     let mut xml = Reader::from_reader(reader);
     // xml.config_mut().trim_text(true);
@@ -275,12 +292,19 @@ pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
     Ok(strings)
 }
 
+/// A cell reference in the form of column and row index
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CellRef {
     pub col: u32,
     pub row: u32,
 }
 
+/// Convert a column string (e.g., "A", "AB") to a 1-based index
+/// Examples:
+///   "A" -> 1
+///   "Z" -> 26
+///   "AA" -> 27
+///   "AB" -> 28
 pub fn col_to_index(col: &str) -> u32 {
     let mut n: u32 = 0;
 
@@ -294,6 +318,8 @@ pub fn col_to_index(col: &str) -> u32 {
     n
 }
 
+/// Parse a cell reference string (e.g., "A1", "BC23") into a CellRef struct
+/// Returns None if the input is invalid
 pub fn parse_cell_ref(s: &str) -> Option<CellRef> {
     let mut col = String::new();
     let mut row = String::new();
@@ -316,6 +342,14 @@ pub fn parse_cell_ref(s: &str) -> Option<CellRef> {
     })
 }
 
+/// Convert a sheet name to a lowercase filename-safe string
+/// Non-alphanumeric characters are replaced with underscores.
+/// If the resulting string is empty, "sheet" is returned.
+/// Examples:
+///   "Sheet1" -> "sheet1"
+///   "Data-Set_2024" -> "data-set_2024"
+///   "!!!" -> "sheet"
+///   "Sales Data (Q1)" -> "sales_data__q1_"
 pub fn to_lowercase_filename(name: &str) -> String {
     let s: String = name
         .chars()
@@ -333,9 +367,16 @@ pub fn to_lowercase_filename(name: &str) -> String {
 
 // Excel date/time utilities
 // Excel stores dates as serial numbers: days since 1900-01-01 (with 1900 incorrectly treated as leap year)
+static SECONDS_PER_DAY: f64 = 86400.0;
 
-const SECONDS_PER_DAY: f64 = 86400.0;
-
+/// Convert an Excel serial date to an ISO 8601 date string (UTC)
+/// If is_1904 is true, use the 1904 date system; otherwise, use the 1900 date system.
+/// Returns None if the serial number is invalid.
+/// Examples:
+///   excel_serial_to_iso_date(44197.0, false) -> Some("2021-01-01T00:00:00.000Z")
+///   excel_serial_to_iso_date(0.0, false) -> Some("1899-12-30T00:00:00.000Z")
+///   excel_serial_to_iso_date(1.0, false) -> Some("1899-12-31T00:00:00.000Z")
+///   excel_serial_to_iso_date(60.0, false) -> Some("1900-02-29T00:00:00.000Z") // Excel bug
 pub fn excel_serial_to_iso_date(serial: f64, is_1904: bool) -> Option<String> {
     let excel_epoch_days = if is_1904 {
         24107 // Days from 1970-01-01 to 1904-01-01
@@ -361,6 +402,14 @@ pub fn excel_serial_to_iso_date(serial: f64, is_1904: bool) -> Option<String> {
     Some(datetime.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
 
+/// Export a sheet XML to CSV file
+/// reader: BufRead of the sheet XML
+/// shared_strings: slice of shared strings
+/// styles: slice of StyleInfo
+/// is_1904: whether the workbook uses the 1904 date system
+/// out_path: path to output CSV file
+/// delimiter: CSV delimiter character (e.g., b',' or b';')
+/// Returns Result<()>
 pub fn export_sheet_xml_to_csv<R: BufRead>(
     reader: R,
     shared_strings: &[String],
