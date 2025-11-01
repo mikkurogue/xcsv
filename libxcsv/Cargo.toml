@@ -1,6 +1,6 @@
 [package]
 name = "libxcsv"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 description = "The complimentary core lib for xcsv, a tool to convert Excel worksheets to CSV."
 license = "MIT"
