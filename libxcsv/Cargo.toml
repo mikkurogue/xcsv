@@ -1,6 +1,6 @@
 [package]
 name = "libxcsv"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "The complimentary core lib for xcsv, a tool to convert Excel worksheets to CSV."
 license = "MIT"
@@ -8,7 +8,6 @@ repository = "https://github.com/mikkurogue/xcsv"
 
 [dependencies]
 anyhow = "1"
-thiserror = "1"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 quick-xml = { version = "0.31.0", features = ["serialize"] }
 csv = "1.3.1"
