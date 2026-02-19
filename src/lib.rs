@@ -8,6 +8,7 @@ use quick_xml::reader::Reader;
 use std::collections::BTreeMap;
 use std::io::BufRead;
 use std::path::Path;
+use tracing::{debug, instrument};
 
 #[derive(Debug, Clone)]
 pub struct SheetInfo {
@@ -20,6 +21,7 @@ pub struct StyleInfo {
     pub is_date: bool,
 }
 
+#[instrument(level = "debug", skip(reader))]
 pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
     let mut xml = Reader::from_reader(reader);
     let mut buf = Vec::new();
@@ -130,6 +132,7 @@ pub fn parse_styles<R: BufRead>(reader: R) -> Result<Vec<StyleInfo>> {
         }
         buf.clear();
     }
+    debug!(style_count = styles.len(), "Parsed styles");
     Ok(styles)
 }
 
@@ -140,6 +143,7 @@ fn tag_eq_ignore_case(actual: &[u8], expect: &str) -> bool {
         || actual.ends_with(expect.to_ascii_uppercase().as_bytes())
 }
 
+#[instrument(level = "debug", skip(reader))]
 pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, String>> {
     // Map r:Id -> full path inside zip (xl/worksheets/sheet1.xml)
     let mut xml = Reader::from_reader(reader);
@@ -172,9 +176,11 @@ pub fn parse_workbook_rels<R: BufRead>(reader: R) -> Result<BTreeMap<String, Str
         }
         buf.clear();
     }
+    debug!(rel_count = map.len(), "Parsed workbook relationships");
     Ok(map)
 }
 
+#[instrument(level = "debug", skip(reader, rels))]
 pub fn parse_workbook<R: BufRead>(
     reader: R,
     rels: &BTreeMap<String, String>,
@@ -225,9 +231,15 @@ pub fn parse_workbook<R: BufRead>(
         }
         buf.clear();
     }
+    debug!(
+        sheet_count = sheets.len(),
+        is_1904 = is_1904,
+        "Parsed workbook"
+    );
     Ok((sheets, is_1904))
 }
 
+#[instrument(level = "debug", skip(reader))]
 pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
     let mut xml = Reader::from_reader(reader);
     // xml.config_mut().trim_text(true);
@@ -264,6 +276,7 @@ pub fn read_shared_strings<R: BufRead>(reader: R) -> Result<Vec<String>> {
         }
         buf.clear();
     }
+    debug!(string_count = strings.len(), "Parsed shared strings");
     Ok(strings)
 }
 
@@ -320,7 +333,11 @@ pub fn to_lowercase_filename(name: &str) -> String {
         })
         .collect();
 
-    if s.is_empty() { "sheet".to_string() } else { s }
+    if s.is_empty() {
+        "sheet".to_string()
+    } else {
+        s
+    }
 }
 
 // Excel date/time utilities
@@ -353,6 +370,7 @@ pub fn excel_serial_to_iso_date(serial: f64, is_1904: bool) -> Option<String> {
     Some(datetime.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
 
+#[instrument(level = "debug", skip(reader, shared_strings, styles), fields(out_path = %out_path.display()))]
 pub fn export_sheet_xml_to_csv<R: BufRead>(
     reader: R,
     shared_strings: &[String],
@@ -509,6 +527,7 @@ pub fn export_sheet_xml_to_csv<R: BufRead>(
         wtr.write_record(row_vals.iter())?;
     }
     wtr.flush()?;
+    debug!(total_rows = current_row_idx, "Exported sheet to CSV");
     Ok(())
 }
 
