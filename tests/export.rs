@@ -13,7 +13,7 @@ fn test_export_command() {
     // Create a dummy xlsx file
     let xlsx_path = dir.path().join("input.xlsx");
     let mut zip = zip::ZipWriter::new(fs::File::create(&xlsx_path).unwrap());
-    let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     zip.start_file("xl/_rels/workbook.xml.rels", options).unwrap();
     zip.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
